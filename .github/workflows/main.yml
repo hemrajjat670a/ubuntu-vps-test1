@@ -13,9 +13,10 @@ jobs:
         sudo systemctl start ssh
         sudo systemctl enable ssh
         echo "root:9829819340" | sudo chpasswd
-    - name: Print IP
+    - name: Print Public IP
       run: |
-        echo "SSH IP: $(hostname -I)"
+        PUBLIC_IP=$(curl -s ifconfig.me)
+        echo "Public SSH IP: $PUBLIC_IP"
     - name: Keep Alive
       run: |
         while true; do
