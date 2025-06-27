@@ -1,25 +1,45 @@
-name: Free Ubuntu VPS
-on: [push]
+name: 24/7 VPS (Auto-Restart)
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 */5 * * *'  # हर 5 घंटे पर रन करेगा
+
 jobs:
-  build:
+  vps:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v3
-    - name: Setup SSH
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y openssh-server
-        sudo systemctl start ssh
-        sudo systemctl enable ssh
-        echo "root:9829819340" | sudo chpasswd
-    - name: Print Public IP
-      run: |
-        PUBLIC_IP=$(curl -s ifconfig.me)
-        echo "Public SSH IP: $PUBLIC_IP"
-    - name: Keep Alive
-      run: |
-        while true; do
-          echo "VPS is running..."
-          sleep 60
-        done
+      - name: Install SSH & Ngrok
+        run: |
+          # SSH सेटअप
+          sudo apt update
+          sudo apt install -y openssh-server
+          sudo mkdir -p /var/run/sshd
+          echo 'root:MySecurePass123' | sudo chpasswd
+          sudo sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+          sudo sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
+          sudo service ssh restart
+
+          # Ngrok इंस्टॉल करें
+          curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
+          echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
+          sudo apt update && sudo apt install ngrok
+          ngrok config add-authtoken 2xOLS465D5MS0YatcYuF1wAjv7P_5gbmakyNraeU9yYs5e54S  # <-- यहाँ अपना टोकन डालें
+          ngrok tcp 22 --log=stdout > ngrok.log &
+          sleep 5
+          grep "url=tcp://" ngrok.log | sed 's/.*url=tcp://g' | cut -d' ' -f1 | sed 's/:/ /g' > ngrok_info.txt
+
+      - name: Show SSH Connection Details
+        run: |
+          NGROK_HOST=$(cat ngrok_info.txt | awk '{print $1}')
+          NGROK_PORT=$(cat ngrok_info.txt | awk '{print $2}')
+          echo "=========================================="
+          echo "🔥 SSH Connect Command: ssh root@$NGROK_HOST -p $NGROK_PORT"
+          echo "🔑 Password: MySecurePass123"
+          echo "=========================================="
+
+      - name: Keep VPS Alive
+        run: |
+          while true; do
+            echo "[$(date)] VPS is running... (GitHub Max: 6 hours)"
+            sleep 60
+          done
