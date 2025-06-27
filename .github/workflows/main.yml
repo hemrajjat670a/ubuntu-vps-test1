@@ -12,7 +12,10 @@ jobs:
         sudo apt-get install -y openssh-server
         sudo systemctl start ssh
         sudo systemctl enable ssh
-        echo "root:MySecurePass123" | sudo chpasswd
+        echo "root:9829819340" | sudo chpasswd
+    - name: Print IP
+      run: |
+        echo "SSH IP: $(hostname -I)"
     - name: Keep Alive
       run: |
         while true; do
