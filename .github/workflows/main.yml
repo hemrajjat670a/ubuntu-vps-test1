@@ -1,0 +1,21 @@
+name: Free Ubuntu VPS
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+    - name: Setup SSH
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y openssh-server
+        sudo systemctl start ssh
+        sudo systemctl enable ssh
+        echo "root:MySecurePass123" | sudo chpasswd
+    - name: Keep Alive
+      run: |
+        while true; do
+          echo "VPS is running..."
+          sleep 60
+        done
