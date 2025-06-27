@@ -2,7 +2,7 @@ name: 24/7 VPS (Auto-Restart)
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 */5 * * *'  # हर 5 घंटे पर रन करेगा
+    - cron: '0 */5 * * *'
 
 jobs:
   vps:
@@ -10,7 +10,6 @@ jobs:
     steps:
       - name: Install SSH & Ngrok
         run: |
-          # SSH सेटअप
           sudo apt update
           sudo apt install -y openssh-server
           sudo mkdir -p /var/run/sshd
@@ -19,14 +18,14 @@ jobs:
           sudo sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
           sudo service ssh restart
 
-          # Ngrok इंस्टॉल करें
           curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
           echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
           sudo apt update && sudo apt install ngrok
-          ngrok config add-authtoken 2xOLS465D5MS0YatcYuF1wAjv7P_5gbmakyNraeU9yYs5e54S  # <-- यहाँ अपना टोकन डालें
+          ngrok config add-authtoken 2xOLS465D5MS0YatcYuF1wAjv7P_5gbmakyNraeU9yYs5e54S
           ngrok tcp 22 --log=stdout > ngrok.log &
-          sleep 5
+          sleep 10  # अधिक वेट टाइम दिया
           grep "url=tcp://" ngrok.log | sed 's/.*url=tcp://g' | cut -d' ' -f1 | sed 's/:/ /g' > ngrok_info.txt
+          cat ngrok_info.txt  # डीबगिंग के लिए
 
       - name: Show SSH Connection Details
         run: |
@@ -40,6 +39,6 @@ jobs:
       - name: Keep VPS Alive
         run: |
           while true; do
-            echo "[$(date)] VPS is running... (GitHub Max: 6 hours)"
+            echo "[$(date)] VPS is running..."
             sleep 60
           done
