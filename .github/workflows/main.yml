@@ -1,5 +1,5 @@
-name: 24/7 VPS (Auto-Restart)
-on:
+name: SSH Server with Alternative Tunnel
+on: 
   workflow_dispatch:
   schedule:
     - cron: '0 */5 * * *'
@@ -8,37 +8,41 @@ jobs:
   vps:
     runs-on: ubuntu-latest
     steps:
-      - name: Install SSH & Ngrok
-        run: |
-          sudo apt update
-          sudo apt install -y openssh-server
-          sudo mkdir -p /var/run/sshd
-          echo 'root:MySecurePass123' | sudo chpasswd
-          sudo sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
-          sudo sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
-          sudo service ssh restart
+    - name: Setup SSH Server
+      run: |
+        sudo apt update
+        sudo apt install -y openssh-server
+        echo 'root:MySecurePass123' | sudo chpasswd
+        sudo sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+        sudo sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
+        sudo service ssh restart
 
-          curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
-          echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
-          sudo apt update && sudo apt install ngrok
-          ngrok config add-authtoken 2xOLS465D5MS0YatcYuF1wAjv7P_5gbmakyNraeU9yYs5e54S
-          ngrok tcp 22 --log=stdout > ngrok.log &
-          sleep 10  # अधिक वेट टाइम दिया
-          grep "url=tcp://" ngrok.log | sed 's/.*url=tcp://g' | cut -d' ' -f1 | sed 's/:/ /g' > ngrok_info.txt
-          cat ngrok_info.txt  # डीबगिंग के लिए
+    - name: Install Cloudflared Tunnel
+      run: |
+        wget https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O cloudflared
+        chmod +x cloudflared
+        nohup ./cloudflared tunnel --url tcp://localhost:22 > tunnel.log 2>&1 &
+        sleep 10
+        grep -o 'trycloudflare.com.*' tunnel.log > tunnel_url.txt
 
-      - name: Show SSH Connection Details
-        run: |
-          NGROK_HOST=$(cat ngrok_info.txt | awk '{print $1}')
-          NGROK_PORT=$(cat ngrok_info.txt | awk '{print $2}')
-          echo "=========================================="
-          echo "🔥 SSH Connect Command: ssh root@$NGROK_HOST -p $NGROK_PORT"
-          echo "🔑 Password: MySecurePass123"
-          echo "=========================================="
+    - name: Show Connection Info
+      run: |
+        TUNNEL_URL=$(cat tunnel_url.txt)
+        echo "=========================================="
+        echo "SSH Connect Command: ssh -o ProxyCommand='cloudflared access tcp --hostname $TUNNEL_URL' root@localhost"
+        echo "Password: MySecurePass123"
+        echo "=========================================="
+        echo "या फिर:"
+        echo "1. पहले cloudflared डाउनलोड करें:"
+        echo "wget https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O cloudflared"
+        echo "chmod +x cloudflared"
+        echo "2. फिर कनेक्ट करें:"
+        echo "./cloudflared access tcp --hostname $TUNNEL_URL --url tcp://localhost:22"
+        echo "=========================================="
 
-      - name: Keep VPS Alive
-        run: |
-          while true; do
-            echo "[$(date)] VPS is running..."
-            sleep 60
-          done
+    - name: Keep Alive
+      run: |
+        while true; do
+          echo "[$(date)] VPS is running..."
+          sleep 60
+        done
